@@ -175,7 +175,7 @@ impl RecvOperator {
 
     pub fn run(&self) {}
 
-    pub fn msg_callback(timestamp: Timestamp, msg: Vec<u8>, state: &mut RecvState) {
+    pub fn msg_callback(timestamp: &Timestamp, msg: &Vec<u8>, state: &mut RecvState) {
         if state.num_received_warmup_messages < NUM_WARMUP_MESSAGES {
             state.num_received_warmup_messages += 1;
             return;
