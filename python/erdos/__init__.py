@@ -191,6 +191,7 @@ def add_watermark_callback(read_streams, write_streams, callback):
 
 def _flow_watermark_callback(timestamp, *write_streams):
     """Flows a watermark to all write streams."""
+    print(f"flowing watermark {timestamp}")
     for write_stream in write_streams:
         write_stream.send(WatermarkMessage(timestamp))
 

@@ -82,6 +82,7 @@ impl<D: Data> InternalReadStream<D> {
 
     /// Add a callback to be invoked when the stream receives a message.
     pub fn add_callback<F: 'static + Fn(Timestamp, D)>(&mut self, callback: F) {
+        slog::debug!(crate::get_terminal_logger(), "Adding callback");
         self.callbacks.push(Arc::new(callback));
     }
 
@@ -212,18 +213,30 @@ impl<D: Data> EventMakerT for InternalReadStream<D> {
                     let timestamp_copy = timestamp.clone();
                     cbs.push(Box::new(move || (cb)(&timestamp_copy)))
                 }
+                println!(
+                    "{}: {} watermark cbs, {} child events",
+                    self.id,
+                    self.watermark_cbs.len(),
+                    child_events.len()
+                );
                 for child_event in child_events {
                     cbs.push(child_event.callback);
                 }
                 if cbs.len() > 0 {
+                    let id = self.id;
                     events.push(OperatorEvent::new(timestamp, true, move || {
+                        let mut count = 0;
                         for cb in cbs {
+                            println!("{}: running watermark cb {}", id, count);
                             (cb)();
+                            println!("{}: done running watermark cb {}", id, count);
+                            count += 1;
                         }
                     }))
                 }
             }
         }
+        println!("{} returning", self.id);
         events
     }
 }

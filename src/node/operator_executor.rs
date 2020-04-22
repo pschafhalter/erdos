@@ -61,7 +61,6 @@ impl<D: Data> OperatorExecutorStreamT for OperatorExecutorStream<D> {
 }
 
 impl<D: Data> Stream for OperatorExecutorStream<D> {
-    // Item = OperatorEvent might be better?
     type Item = Vec<OperatorEvent>;
 
     fn poll_next(
@@ -119,6 +118,59 @@ impl<D: Data> OperatorExecutorStream<D> {
     }
 }
 
+struct OperatorEventStream {
+    streams: Vec<Pin<Box<dyn Send + Stream<Item = Vec<OperatorEvent>>>>>,
+    current_stream_index: usize,
+}
+
+impl OperatorEventStream {
+    fn new(mut streams: Vec<Box<dyn OperatorExecutorStreamT>>) -> Self {
+        Self {
+            streams: streams.into_iter().map(|s| s.to_pinned_stream()).collect(),
+            current_stream_index: 0,
+        }
+    }
+}
+
+impl Stream for OperatorEventStream {
+    type Item = Vec<OperatorEvent>;
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Vec<OperatorEvent>>> {
+        if self.streams.is_empty() {
+            return Poll::Ready(None);
+        }
+
+        for _ in 0..self.streams.len() {
+            let current_stream_index = self.current_stream_index;
+            match self
+                .streams
+                .get_mut(current_stream_index)
+                .unwrap()
+                .as_mut()
+                .poll_next(cx)
+            {
+                Poll::Ready(Some(msg)) => {
+                    self.current_stream_index = (current_stream_index + 1) % self.streams.len();
+                    println!("Returning {} events", msg.len());
+                    return Poll::Ready(Some(msg));
+                }
+                Poll::Ready(None) => {
+                    // Remove the current stream.
+                    self.streams.remove(current_stream_index);
+                    self.current_stream_index = current_stream_index % self.streams.len();
+                }
+                Poll::Pending => {
+                    self.current_stream_index = (current_stream_index + 1) % self.streams.len();
+                }
+            }
+        }
+        Poll::Pending
+    }
+}
+
 /// `OperatorExecutor` is a structure that is in charge of executing callbacks associated with
 /// messages and watermarks arriving on input streams at an `Operator`. The callbacks are invoked
 /// according to the partial order defined in [`OperatorEvent`].
@@ -134,7 +186,7 @@ pub struct OperatorExecutor {
     config: OperatorConfig<()>,
     /// A merged stream of all the input streams of the operator. This is used to retrieve events
     /// to execute.
-    event_stream: Option<Pin<Box<dyn Send + Stream<Item = Vec<OperatorEvent>>>>>,
+    event_stream: OperatorEventStream,
     /// Used to decide whether to run destroy()
     streams_closed: HashMap<StreamId, Arc<AtomicBool>>,
     /// A lattice that keeps a partial order of the events that need to be processed.
@@ -149,7 +201,7 @@ impl OperatorExecutor {
     pub fn new<T: 'static + Operator, U: Clone>(
         operator: T,
         config: OperatorConfig<U>,
-        mut operator_streams: Vec<Box<dyn OperatorExecutorStreamT>>,
+        operator_streams: Vec<Box<dyn OperatorExecutorStreamT>>,
         control_rx: mpsc::UnboundedReceiver<ControlMessage>,
         logger: slog::Logger,
     ) -> Self {
@@ -157,17 +209,10 @@ impl OperatorExecutor {
             .iter()
             .map(|s| (s.get_id(), s.get_closed_ref()))
             .collect();
-        let event_stream = operator_streams.pop().map(|first| {
-            operator_streams
-                .into_iter()
-                .fold(first.to_pinned_stream(), |x, y| {
-                    Box::pin(StreamExt::merge(x, y.to_pinned_stream()))
-                })
-        });
         Self {
             operator: Box::new(operator),
             config: config.drop_arg(),
-            event_stream,
+            event_stream: OperatorEventStream::new(operator_streams),
             streams_closed,
             lattice: Arc::new(ExecutionLattice::new()),
             control_rx,
@@ -213,7 +258,7 @@ impl OperatorExecutor {
         // Callbacks are not invoked while the operator is running.
         self.operator.run();
 
-        if let Some(mut event_stream) = self.event_stream.take() {
+        if !self.event_stream.streams.is_empty() {
             // Launch consumers
             // TODO: use CondVar instead of watch.
             // TODO: adjust number of event runners. based on size of event lattice.
@@ -224,11 +269,12 @@ impl OperatorExecutor {
                     Self::event_runner(Arc::clone(&self.lattice), notifier_rx.clone());
                 event_runner_handles.push(tokio::spawn(event_runner_fut));
             }
-            while let Some(events) = event_stream.next().await {
+            while let Some(events) = self.event_stream.next().await {
                 {
                     {
                         // Add all the received events to the lattice.
                         for event in events {
+                            println!("adding event to lattice");
                             self.lattice.add_event(event).await;
                         }
                     }

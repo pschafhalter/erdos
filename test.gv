@@ -1,0 +1,13 @@
+digraph erdos_dataflow {
+   // Declare driver
+   // Declare operators
+   "96e1c913-b9c0-12da-3817-0fa1349bebd0" [label="96e1c913-b9c0-12da-3817-0fa1349bebd0\n(Node 3)"];
+   "97944689-ce67-a82c-c506-8ba4659991b6" [label="97944689-ce67-a82c-c506-8ba4659991b6\n(Node 1)"];
+   "a1a1bc90-4811-2c4b-0580-1b8b3546c0ab" [label="a1a1bc90-4811-2c4b-0580-1b8b3546c0ab\n(Node 2)"];
+   "fd04598a-4590-b39f-1db1-065697be09e1" [label="fd04598a-4590-b39f-1db1-065697be09e1\n(Node 4)"];
+   // Declare channels
+   "97944689-ce67-a82c-c506-8ba4659991b6" -> "96e1c913-b9c0-12da-3817-0fa1349bebd0" [label="c352089b-04c1-d3d2-72bb-5746fc2ad5d8"];
+   "a1a1bc90-4811-2c4b-0580-1b8b3546c0ab" -> "96e1c913-b9c0-12da-3817-0fa1349bebd0" [label="9d6c5915-6f23-13dc-9890-b4bc7a4627cb"];
+   "a1a1bc90-4811-2c4b-0580-1b8b3546c0ab" -> "fd04598a-4590-b39f-1db1-065697be09e1" [label="9d6c5915-6f23-13dc-9890-b4bc7a4627cb"];
+   "96e1c913-b9c0-12da-3817-0fa1349bebd0" -> "fd04598a-4590-b39f-1db1-065697be09e1" [label="a7015556-7321-9352-b74e-a6694460cab1"];
+}
