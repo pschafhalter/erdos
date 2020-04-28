@@ -59,7 +59,7 @@ impl PyMessage {
         }
     }
 
-    fn is_watermark(&self) -> bool {
+    pub fn is_watermark(&self) -> bool {
         match &self.msg {
             Message::Watermark(_) => true,
             _ => false,

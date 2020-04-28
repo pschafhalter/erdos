@@ -24,6 +24,16 @@ impl PyWriteStream {
     }
 
     fn send(&mut self, msg: &PyMessage) -> PyResult<()> {
+        let erdos_msg = Message::from(msg);
+        let msg_size: usize = erdos_msg.data().map(|d| d.len()).unwrap_or(0);
+        slog::info!(
+            crate::get_terminal_logger(),
+            "WriteStream {}: sending message with data size {}, is_watermark={}",
+            self.write_stream.get_id(),
+            msg_size,
+            msg.is_watermark()
+        );
+
         self.write_stream.send(Message::from(msg)).map_err(|e| {
             exceptions::Exception::py_err(format!(
                 "Error sending message on ingest stream {}: {:?}",
