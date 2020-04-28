@@ -34,7 +34,7 @@ impl PyWriteStream {
             msg.is_watermark()
         );
 
-        self.write_stream.send(Message::from(msg)).map_err(|e| {
+        self.write_stream.send(erdos_msg).map_err(|e| {
             exceptions::Exception::py_err(format!(
                 "Error sending message on ingest stream {}: {:?}",
                 self.write_stream.get_id(),
