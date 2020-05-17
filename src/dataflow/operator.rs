@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::{node::NodeId, OperatorId};
 
 /// Trait that must be implemented by any operator.
@@ -21,6 +23,7 @@ pub struct OperatorConfig<T: Clone> {
     pub flow_watermarks: bool,
     pub node_id: NodeId,
     pub num_event_runners: usize,
+    pub deadline: Duration,
 }
 
 impl<T: Clone> OperatorConfig<T> {
@@ -32,6 +35,7 @@ impl<T: Clone> OperatorConfig<T> {
             flow_watermarks: true,
             node_id: 0,
             num_event_runners: 1,
+            deadline: Duration::from_secs(1),
         }
     }
 
@@ -69,6 +73,12 @@ impl<T: Clone> OperatorConfig<T> {
         self
     }
 
+    /// Local deadline for operator executor in OSDI experiment.
+    pub fn deadline(&mut self, deadline: Duration) -> &mut Self {
+        self.deadline = deadline;
+        self
+    }
+
     /// Loses argument type information in the
     /// [`OperatorExecutor`](crate::node::operator_executor::OperatorExecutor).
     pub(crate) fn drop_arg(self) -> OperatorConfig<()> {
@@ -79,6 +89,7 @@ impl<T: Clone> OperatorConfig<T> {
             flow_watermarks: self.flow_watermarks,
             node_id: self.node_id,
             num_event_runners: self.num_event_runners,
+            deadline: self.deadline,
         }
     }
 }

@@ -8,6 +8,7 @@ use std::{
         Arc,
     },
     task::{Context, Poll},
+    time::{Duration, SystemTime},
 };
 
 use futures::future;
@@ -26,6 +27,7 @@ use crate::{
     },
     node::lattice::ExecutionLattice,
     node::operator_event::OperatorEvent,
+    OperatorId,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -211,7 +213,8 @@ impl OperatorExecutor {
         );
 
         // Callbacks are not invoked while the operator is running.
-        self.operator.run();
+        tokio::task::block_in_place(|| self.operator.run());
+        // self.operator.run();
 
         if let Some(mut event_stream) = self.event_stream.take() {
             // Launch consumers
@@ -220,8 +223,12 @@ impl OperatorExecutor {
             let (notifier_tx, notifier_rx) = watch::channel(EventRunnerMessage::AddedEvents);
             let mut event_runner_handles = Vec::new();
             for _ in 0..self.config.num_event_runners {
-                let event_runner_fut =
-                    Self::event_runner(Arc::clone(&self.lattice), notifier_rx.clone());
+                let event_runner_fut = Self::event_runner(
+                    Arc::clone(&self.lattice),
+                    notifier_rx.clone(),
+                    self.config.id,
+                    self.config.deadline,
+                );
                 event_runner_handles.push(tokio::spawn(event_runner_fut));
             }
             while let Some(events) = event_stream.next().await {
@@ -263,12 +270,34 @@ impl OperatorExecutor {
     async fn event_runner(
         lattice: Arc<ExecutionLattice>,
         mut notifier_rx: watch::Receiver<EventRunnerMessage>,
+        op_id: OperatorId,
+        deadline: Duration,
     ) {
         // Wait for notification for events added.
         while let Some(control_msg) = notifier_rx.recv().await {
             while let Some((event, event_id)) = lattice.get_event().await {
-                (event.callback)();
-                lattice.mark_as_completed(event_id).await;
+                let lattice_ref_clone = lattice.clone();
+                let event_start = SystemTime::now();
+                let timer_fut = tokio::time::delay_for(deadline);
+                let event_fut = tokio::spawn(async move {
+                    (event.callback)();
+                    /*
+                    println!(
+                        "{}: finished event after {} s, deadline {} s",
+                        op_id,
+                        SystemTime::now()
+                            .duration_since(event_start)
+                            .unwrap()
+                            .as_secs_f64(),
+                        deadline.as_secs_f64()
+                    );
+                    */
+                    lattice_ref_clone.mark_as_completed(event_id).await;
+                });
+                tokio::select! {
+                    _ = timer_fut => (), // println!("{}: finished timer after {} s, deadline {} s", op_id, SystemTime::now().duration_since(event_start).unwrap().as_secs_f64(), deadline.as_secs_f64()),
+                    _ = event_fut => (),
+                }
             }
             if EventRunnerMessage::DestroyOperator == control_msg {
                 break;
