@@ -178,6 +178,10 @@ impl<'a, D1: Data, D2: Data, D3: Data + Deserialize<'a>> JoinOperator<D1, D2, D3
             .send(Message::new_message(t.clone(), result_t))
             .expect("JoinOperator: error sending on write stream");
 
+        write_stream
+            .send(Message::new_watermark(t.clone()))
+            .unwrap();
+
         // Garbage collect all the data upto and including this timestamp.
         left_state.clean_state(t);
         right_state.clean_state(t);

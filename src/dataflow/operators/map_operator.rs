@@ -59,6 +59,13 @@ impl<'a, D1: Data, D2: Data + Deserialize<'a>> MapOperator<D1, D2> {
                 Self::on_data_callback(t, msg, output_stream, &callback)
             },
         );
+        stateful_stream.add_watermark_callback(
+            |t: &Timestamp, output_stream: &mut WriteStream<_>| {
+                output_stream
+                    .send(Message::new_watermark(t.clone()))
+                    .unwrap();
+            },
+        );
         Self {
             name,
             phantom_data: PhantomData,
