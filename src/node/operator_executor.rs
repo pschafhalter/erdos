@@ -237,6 +237,7 @@ impl OperatorExecutor {
                     notifier_tx
                         .broadcast(EventRunnerMessage::AddedEvents)
                         .unwrap();
+                    tokio::task::yield_now().await;
                 }
             }
             // Wait for event runners to finish.
@@ -270,6 +271,7 @@ impl OperatorExecutor {
             while let Some((event, event_id)) = lattice.get_event().await {
                 (event.callback)();
                 lattice.mark_as_completed(event_id).await;
+                tokio::task::yield_now().await;
             }
             if EventRunnerMessage::DestroyOperator == control_msg {
                 break;
