@@ -1,5 +1,8 @@
 language: rust
 
+env:
+  RUSTFLAGS: -D warnings
+
 addons:
   apt:
     packages:
