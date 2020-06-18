@@ -14,11 +14,15 @@ rust:
 
 install:
   - pip3 install --user fire
+  - pip3 install --user setuptools-rust
 
 jobs:
   - stage: "Build"
     name: "Rust build"
     script: cargo build --verbose --all
+  - stage: "Build"
+    name: "Python build"
+    script: python3 python/setup.py develop
   - stage: "Test"
     name: "Rust tests"
     script: cargo test --verbose --all
