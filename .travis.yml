@@ -22,7 +22,7 @@ jobs:
   - stage: "Test"
     name: "Rust build"
     script: cargo build --verbose --all
-  - stage: "Build"
+  - stage: "Test"
     name: "Test"
     script: python3 python/setup.py install --user
   - stage: "Test"
