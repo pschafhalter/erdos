@@ -1,4 +1,6 @@
 language: rust
+os: linux
+dist: bionic  # Necessary for Python 3.6
 
 env:
   - RUSTFLAGS="-D warnings"
@@ -17,11 +19,11 @@ install:
   - pip3 install --user setuptools-rust
 
 jobs:
-  - stage: "Build"
+  - stage: "Test"
     name: "Rust build"
     script: cargo build --verbose --all
   - stage: "Build"
-    name: "Python build"
+    name: "Test"
     script: python3 python/setup.py install --user
   - stage: "Test"
     name: "Rust tests"
