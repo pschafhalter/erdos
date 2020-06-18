@@ -12,5 +12,19 @@ addons:
 rust:
   - nightly
 
+before_install:
+  - cargo install rustfmt
+
 install:
   - pip3 install --user fire
+
+jobs:
+  - stage: "Formatting"
+    name: "Rust formatting"
+    script: cargo fmt -- --check
+  - stage: "Build"
+    name: "Rust"
+    script: cargo build --verbose
+  - stage: "Test"
+    name: "Rust tests"
+    script: cargo test --verbose --all
