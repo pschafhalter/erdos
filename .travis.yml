@@ -1,7 +1,7 @@
 language: rust
 
 env:
-  RUSTFLAGS: "-D warnings"
+  - RUSTFLAGS="-D warnings"
 
 addons:
   apt:
