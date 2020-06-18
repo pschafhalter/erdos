@@ -13,7 +13,7 @@ rust:
   - nightly
 
 before_install:
-  - which rustfmt || cargo install rustfmt-nightlyZ
+  - rustup component add rustfmt
 
 install:
   - pip3 install --user fire
