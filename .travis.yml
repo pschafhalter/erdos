@@ -16,9 +16,6 @@ install:
   - pip3 install --user fire
 
 jobs:
-    script:
-      - rustup component add rustfmt --toolchain nightly
-      - cargo fmt -- --check
   - stage: "Build"
     name: "Rust build"
     script: cargo build --verbose --all
