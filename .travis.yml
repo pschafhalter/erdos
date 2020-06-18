@@ -12,16 +12,18 @@ addons:
 rust:
   - nightly
 
-before_install:
-  - rustup component add rustfmt --toolchain nightly
-
 install:
   - pip3 install --user fire
 
 jobs:
   - stage: "Formatting"
     name: "Rust formatting"
-    script: cargo fmt -- --check
+    script:
+      - rustup component add rustfmt --toolchain nightly
+      - cargo fmt -- --check
+    allow_failures:
+      - rust: nightly
+    fast_finish: true
   - stage: "Build"
     name: "Rust"
     script: cargo build --verbose
