@@ -161,7 +161,7 @@ pub use ::slog;
 pub use ::tokio;
 
 // Libraries used in this file.
-use std::{cell::RefCell, fmt};
+use std::{cell::RefCell, fmt, sync::Mutex};
 
 use abomonation_derive::Abomonation;
 use clap::{self, App, Arg};
@@ -171,6 +171,8 @@ use serde::{Deserialize, Serialize};
 use slog::{Drain, Logger};
 use slog_term::{self, term_full};
 use uuid;
+
+use rich_tasks::{Executor, Spawner};
 
 // Private submodules
 mod configuration;
@@ -194,6 +196,14 @@ pub use dataflow::OperatorConfig;
 
 /// A unique identifier for an operator.
 pub type OperatorId = Uuid;
+
+// Runtime
+lazy_static! {
+    static ref RUNTIME: (Mutex<Executor>, Spawner) = {
+        let (executor, spawner) = rich_tasks::new_executor_and_spawner();
+        (Mutex::new(executor), spawner)
+    };
+}
 
 // Random number generator which should be the same accross threads and processes.
 thread_local!(static RNG: RefCell<StdRng>= RefCell::new(StdRng::from_seed(&[1913, 03, 26])));

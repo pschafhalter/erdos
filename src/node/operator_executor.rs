@@ -248,7 +248,7 @@ impl OperatorExecutor {
             for _ in 0..self.config.num_event_runners {
                 let event_runner_fut =
                     Self::event_runner(Arc::clone(&self.lattice), notifier_rx.clone());
-                event_runner_handles.push(tokio::spawn(event_runner_fut));
+                event_runner_handles.push(crate::RUNTIME.1.spawn(event_runner_fut));
             }
             while let Some(events) = event_stream.next().await {
                 {
@@ -265,7 +265,7 @@ impl OperatorExecutor {
                 .broadcast(EventRunnerMessage::DestroyOperator)
                 .unwrap();
             // Handle errors?
-            future::join_all(event_runner_handles).await;
+            // future::join_all(event_runner_handles).await;
 
             if self.all_streams_closed() {
                 slog::debug!(
@@ -375,6 +375,14 @@ impl OperatorExecutor {
         // Wait for notification for events added.
         while let Some(control_msg) = notifier_rx.recv().await {
             while let Some((event, event_id)) = lattice.get_event().await {
+                // Event = callback + message + deadline.
+                // executor::spawn_with_deadline(
+                //     async {
+                //         (event.callback)();
+                //         lattice.mark_as_completed(event_id).await;
+                //     },
+                //     event.deadline,
+                // );
                 (event.callback)();
                 lattice.mark_as_completed(event_id).await;
             }

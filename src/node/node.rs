@@ -81,14 +81,19 @@ impl Node {
     pub fn run(&mut self) {
         slog::debug!(self.config.logger, "Node {}: running", self.id);
         // Build a runtime with n threads.
-        let mut runtime = Builder::new()
-            .threaded_scheduler()
-            .core_threads(self.config.num_worker_threads)
-            .thread_name(format!("node-{}", self.id))
-            .enable_all()
-            .build()
-            .unwrap();
-        runtime.block_on(self.async_run());
+        // let mut runtime = Builder::new()
+        //     .threaded_scheduler()
+        //     .core_threads(self.config.num_worker_threads)
+        //     .thread_name(format!("node-{}", self.id))
+        //     .enable_all()
+        //     .build()
+        //     .unwrap();
+        // runtime.block_on(self.async_run());
+        crate::RUNTIME
+            .0
+            .lock()
+            .expect("Error getting executor")
+            .run();
         slog::debug!(self.config.logger, "Node {}: finished running", self.id);
     }
 
@@ -324,7 +329,7 @@ impl Node {
             let (tx, rx) = mpsc::unbounded_channel();
             channels_to_operators.insert(operator_info.id, tx);
             // Launch the operator as a separate async task.
-            let join_handle = tokio::spawn(async move {
+            let join_handle = crate::RUNTIME.1.spawn(async move {
                 let mut operator_executor =
                     (operator_info.runner)(channel_manager_copy, operator_tx_copy, rx);
                 operator_executor.execute().await;
@@ -353,7 +358,7 @@ impl Node {
                 .map_err(|e| format!("Error telling operator to run: {}", e))?;
         }
         // Wait for all operators to finish running.
-        future::join_all(join_handles).await;
+        // future::join_all(join_handles).await;
         Ok(())
     }
 
