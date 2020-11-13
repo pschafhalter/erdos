@@ -194,6 +194,19 @@ impl OperatorExecutor {
     /// input streams, adding them to the lattice maintained by the executor and notifying the
     /// `event_runner` invocations to process the received events.
     pub async fn execute(&mut self) {
+        let name = self
+            .config
+            .name
+            .clone()
+            .unwrap_or_else(|| format!("{}", self.config.id));
+
+        slog::debug!(
+            crate::TERMINAL_LOGGER,
+            "Node {}: operator {} waiting for control message",
+            self.config.node_id,
+            name
+        );
+
         loop {
             if let Some(ControlMessage::RunOperator(id)) = self.control_rx.recv().await {
                 if id == self.config.id {
@@ -202,11 +215,6 @@ impl OperatorExecutor {
             }
         }
 
-        let name = self
-            .config
-            .name
-            .clone()
-            .unwrap_or_else(|| format!("{}", self.config.id));
         slog::debug!(
             crate::TERMINAL_LOGGER,
             "Node {}: running operator {}",
@@ -215,7 +223,8 @@ impl OperatorExecutor {
         );
 
         // Callbacks are not invoked while the operator is running.
-        tokio::task::block_in_place(|| self.operator.run());
+        // tokio::task::block_in_place(|| self.operator.run());
+        self.operator.run();
 
         // Deadlines.
         let file = if self.config.logging {
@@ -235,7 +244,11 @@ impl OperatorExecutor {
             let mut deadlines = self.config.deadlines.try_lock().unwrap();
             deadlines
                 .drain(..)
-                .map(|deadline| tokio::spawn(Self::enforce_deadline(deadline, file.clone())))
+                .map(|deadline| {
+                    crate::RUNTIME
+                        .1
+                        .spawn(Self::enforce_deadline(deadline, file.clone()))
+                })
                 .collect()
         };
 

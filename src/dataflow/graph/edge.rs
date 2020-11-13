@@ -61,7 +61,7 @@ where
     }
 }
 
-pub trait StreamMetadataT: Send {
+pub trait StreamMetadataT: Send + Sync {
     fn get_id(&self) -> StreamId;
     fn get_source(&self) -> Vertex;
     fn box_clone(&self) -> Box<dyn StreamMetadataT>;

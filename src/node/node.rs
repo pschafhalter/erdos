@@ -78,7 +78,7 @@ impl Node {
     /// Runs an ERDOS node.
     ///
     /// The method never returns.
-    pub fn run(&mut self) {
+    pub fn run(&'static mut self) {
         slog::debug!(self.config.logger, "Node {}: running", self.id);
         // Build a runtime with n threads.
         // let mut runtime = Builder::new()
@@ -89,12 +89,14 @@ impl Node {
         //     .build()
         //     .unwrap();
         // runtime.block_on(self.async_run());
+        let id = self.id;
+        crate::RUNTIME.1.spawn(self.async_run());
         crate::RUNTIME
             .0
             .lock()
             .expect("Error getting executor")
             .run();
-        slog::debug!(self.config.logger, "Node {}: finished running", self.id);
+        slog::debug!(crate::TERMINAL_LOGGER, "Node {}: finished running", id);
     }
 
     /// Runs an ERDOS node in a seperate OS thread.
@@ -103,12 +105,11 @@ impl Node {
     pub fn run_async(mut self) -> NodeHandle {
         // Clone to avoid move to other thread.
         let shutdown_tx = self.shutdown_tx.clone();
-        // Copy dataflow graph to the other thread
-        let graph = default_graph::clone();
+
         let initialized = self.initialized.clone();
         let thread_handle = thread::spawn(move || {
-            default_graph::set(graph);
-            self.run();
+            let node = Box::new(self);
+            Box::leak(node).run();
         });
         // Wait for ERDOS to start up.
         let (lock, cvar) = &*initialized;
@@ -286,8 +287,12 @@ impl Node {
 
     async fn run_operators(&mut self) -> Result<(), String> {
         self.wait_for_communication_layer_initialized().await?;
-
         let graph = scheduler::schedule(&default_graph::clone());
+        slog::debug!(
+            self.config.logger,
+            "There are {} total operators",
+            graph.get_operators().len()
+        );
         if let Some(filename) = &self.config.graph_filename {
             graph.to_dot(filename.as_str()).map_err(|e| e.to_string())?;
         }
@@ -313,6 +318,11 @@ impl Node {
         let num_local_operators = local_operators.len();
 
         let mut join_handles = Vec::with_capacity(num_local_operators);
+        slog::debug!(
+            self.config.logger,
+            "There are {} local operators",
+            num_local_operators
+        );
         for operator_info in local_operators {
             let name = operator_info
                 .name
@@ -330,6 +340,7 @@ impl Node {
             channels_to_operators.insert(operator_info.id, tx);
             // Launch the operator as a separate async task.
             let join_handle = crate::RUNTIME.1.spawn(async move {
+                slog::debug!(crate::TERMINAL_LOGGER, "Launching operator executor");
                 let mut operator_executor =
                     (operator_info.runner)(channel_manager_copy, operator_tx_copy, rx);
                 operator_executor.execute().await;
@@ -367,18 +378,20 @@ impl Node {
         let num_nodes = self.config.data_addresses.len();
         let logger = self.config.logger.clone();
         // Create TCPStreams between all node pairs.
-        let control_streams = communication::create_tcp_streams(
-            self.config.control_addresses.clone(),
-            self.id,
-            &self.config.logger,
-        )
-        .await;
-        let data_streams = communication::create_tcp_streams(
-            self.config.data_addresses.clone(),
-            self.id,
-            &self.config.logger,
-        )
-        .await;
+        // let control_streams = communication::create_tcp_streams(
+        //     self.config.control_addresses.clone(),
+        //     self.id,
+        //     &self.config.logger,
+        // )
+        // .await;
+        // let data_streams = communication::create_tcp_streams(
+        //     self.config.data_addresses.clone(),
+        //     self.id,
+        //     &self.config.logger,
+        // )
+        // .await;
+        let control_streams = Vec::new();
+        let data_streams = Vec::new();
         let (control_senders, control_receivers) =
             self.split_control_streams(control_streams).await;
         let (senders, receivers) = self.split_data_streams(data_streams).await;

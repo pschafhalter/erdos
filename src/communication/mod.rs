@@ -98,6 +98,9 @@ pub async fn create_tcp_streams(
     node_id: NodeId,
     logger: &slog::Logger,
 ) -> Vec<(NodeId, TcpStream)> {
+    if node_addrs.len() == 1 {
+        return Vec::new();
+    }
     let node_addr = node_addrs[node_id].clone();
     // Connect to the nodes that have a lower id than the node.
     let connect_streams_fut = connect_to_nodes(node_addrs[..node_id].to_vec(), node_id, logger);

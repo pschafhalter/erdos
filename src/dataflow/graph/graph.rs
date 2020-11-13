@@ -323,3 +323,5 @@ impl Graph {
         Ok(())
     }
 }
+
+unsafe impl Send for Graph {}
