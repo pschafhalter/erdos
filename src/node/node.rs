@@ -23,7 +23,7 @@ use crate::communication::{
     senders::{self, ControlSender, DataSender},
     ControlMessage, ControlMessageCodec, ControlMessageHandler, MessageCodec,
 };
-use crate::dataflow::graph::default_graph;
+use crate::dataflow::graph::{default_graph, Graph};
 use crate::scheduler::{
     self,
     channel_manager::ChannelManager,
@@ -44,6 +44,8 @@ pub struct Node {
     config: Configuration,
     /// Unique node id.
     id: NodeId,
+    /// Dataflow graph which the node will execute.
+    dataflow_graph: Option<Graph>,
     /// Structure to be used to send `Sender` updates to receiver threads.
     channels_to_receivers: Arc<Mutex<ChannelsToReceivers>>,
     /// Structure to be used to send messages to sender threads.
@@ -66,6 +68,7 @@ impl Node {
         Self {
             config,
             id,
+            dataflow_graph: None,
             channels_to_receivers: Arc::new(Mutex::new(ChannelsToReceivers::new())),
             channels_to_senders: Arc::new(Mutex::new(ChannelsToSenders::new())),
             control_handler: ControlMessageHandler::new(logger),
@@ -80,6 +83,10 @@ impl Node {
     /// The method never returns.
     pub fn run(&'static mut self) {
         slog::debug!(self.config.logger, "Node {}: running", self.id);
+        // Set the dataflow graph if it hasn't been set already.
+        if self.dataflow_graph.is_none() {
+            self.dataflow_graph = Some(default_graph::clone());
+        }
         // Build a runtime with n threads.
         // let mut runtime = Builder::new()
         //     .threaded_scheduler()
@@ -105,7 +112,8 @@ impl Node {
     pub fn run_async(mut self) -> NodeHandle {
         // Clone to avoid move to other thread.
         let shutdown_tx = self.shutdown_tx.clone();
-
+        // Copy dataflow graph to the other thread
+        self.dataflow_graph = Some(default_graph::clone());
         let initialized = self.initialized.clone();
         let thread_handle = thread::spawn(move || {
             let node = Box::new(self);
@@ -287,12 +295,11 @@ impl Node {
 
     async fn run_operators(&mut self) -> Result<(), String> {
         self.wait_for_communication_layer_initialized().await?;
-        let graph = scheduler::schedule(&default_graph::clone());
-        slog::debug!(
-            self.config.logger,
-            "There are {} total operators",
-            graph.get_operators().len()
-        );
+        let graph_ref = self
+            .dataflow_graph
+            .as_ref()
+            .unwrap_or_else(|| panic!("Node {}: dataflow graph must be set."));
+        let graph = scheduler::schedule(graph_ref);
         if let Some(filename) = &self.config.graph_filename {
             graph.to_dot(filename.as_str()).map_err(|e| e.to_string())?;
         }
